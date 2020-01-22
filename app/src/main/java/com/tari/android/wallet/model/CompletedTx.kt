@@ -37,24 +37,46 @@ import android.os.Parcelable
 import java.math.BigInteger
 
 /**
- * Wallet balance info.
+ * Completed tx model class.
  *
  * @author The Tari Development Team
  */
-class BalanceInfo() : Parcelable {
+class CompletedTx() : Parcelable {
 
-    var availableBalance = BigInteger("0")
-    var pendingIncomingBalance = BigInteger("0")
-    var pendingOutgoingBalance = BigInteger("0")
+    enum class Status {
+        TX_NULL_ERROR,
+        COMPLETED,
+        BROADCAST,
+        MINED
+    }
+
+    var id = BigInteger("0")
+    var sourcePublicKeyHexString = ""
+    var destinationPublicKeyHexString = ""
+    var amount = BigInteger("0")
+    var fee = BigInteger("0")
+    var timestamp = BigInteger("0")
+    var message = ""
+    var status = Status.COMPLETED
 
     constructor(
-        availableBalance: BigInteger,
-        pendingIncomingBalance: BigInteger,
-        pendingOutgoingBalance: BigInteger
+        id: BigInteger,
+        sourcePublicKeyHexString: String,
+        destinationPublicKeyHexString: String,
+        amount: BigInteger,
+        fee: BigInteger,
+        timestamp: BigInteger,
+        message: String,
+        status: Status
     ) : this() {
-        this.availableBalance = availableBalance
-        this.pendingIncomingBalance = pendingIncomingBalance
-        this.pendingOutgoingBalance = pendingOutgoingBalance
+        this.id = id
+        this.sourcePublicKeyHexString = sourcePublicKeyHexString
+        this.destinationPublicKeyHexString = destinationPublicKeyHexString
+        this.amount = amount
+        this.fee = fee
+        this.timestamp = timestamp
+        this.message = message
+        this.status = status
     }
 
     // region Parcelable
@@ -63,28 +85,38 @@ class BalanceInfo() : Parcelable {
         readFromParcel(parcel)
     }
 
-    companion object CREATOR : Parcelable.Creator<BalanceInfo> {
+    companion object CREATOR : Parcelable.Creator<CompletedTx> {
 
-        override fun createFromParcel(parcel: Parcel): BalanceInfo {
-            return BalanceInfo(parcel)
+        override fun createFromParcel(parcel: Parcel): CompletedTx {
+            return CompletedTx(parcel)
         }
 
-        override fun newArray(size: Int): Array<BalanceInfo> {
-            return Array(size) { BalanceInfo() }
+        override fun newArray(size: Int): Array<CompletedTx> {
+            return Array(size) { CompletedTx() }
         }
 
     }
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {
-        parcel.writeSerializable(availableBalance)
-        parcel.writeSerializable(pendingIncomingBalance)
-        parcel.writeSerializable(pendingOutgoingBalance)
+        parcel.writeSerializable(id)
+        parcel.writeString(sourcePublicKeyHexString)
+        parcel.writeString(destinationPublicKeyHexString)
+        parcel.writeSerializable(amount)
+        parcel.writeSerializable(fee)
+        parcel.writeSerializable(timestamp)
+        parcel.writeString(message)
+        parcel.writeSerializable(status)
     }
 
     private fun readFromParcel(inParcel: Parcel) {
-        availableBalance = inParcel.readSerializable() as BigInteger
-        pendingIncomingBalance = inParcel.readSerializable() as BigInteger
-        pendingOutgoingBalance = inParcel.readSerializable() as BigInteger
+        id = inParcel.readSerializable() as BigInteger
+        sourcePublicKeyHexString = inParcel.readString() ?: ""
+        destinationPublicKeyHexString = inParcel.readString() ?: ""
+        amount = inParcel.readSerializable() as BigInteger
+        fee = inParcel.readSerializable() as BigInteger
+        timestamp = inParcel.readSerializable() as BigInteger
+        message = inParcel.readString() ?: ""
+        status = inParcel.readSerializable() as Status
     }
 
     override fun describeContents(): Int {

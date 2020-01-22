@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Tari Wallet Client</string>
+    <string name="no_service_connection">No service connection yet.</string>
+    <string name="send_taris_to">Send %1$d µTaris to %2$s</string>
 </resources>

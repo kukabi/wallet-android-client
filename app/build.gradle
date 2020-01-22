@@ -40,6 +40,9 @@ dependencies {
     // logger
     implementation 'com.orhanobut:logger:2.2.0'
 
+    // joda
+    implementation "net.danlew:android.joda:2.10.3"
+
     // butterknife
     implementation "com.jakewharton:butterknife:10.2.0"
     kapt "com.jakewharton:butterknife-compiler:10.2.0"

@@ -38,15 +38,27 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.ResolveInfo
 import android.content.pm.ServiceInfo
+import android.graphics.PorterDuff
+import android.os.AsyncTask
 import android.os.Bundle
 import android.os.IBinder
+import android.view.View
+import android.widget.Button
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import butterknife.BindView
-import butterknife.ButterKnife
+import butterknife.*
 import com.orhanobut.logger.Logger
+import com.tari.android.wallet.model.Amount
+import com.tari.android.wallet.model.Contact
+import com.tari.android.wallet.model.TxId
 import com.tari.android.wallet.service.TariWalletService
+import com.tari.android.wallet.service.TariWalletServiceListener
+import org.joda.time.format.DateTimeFormat
+import java.lang.RuntimeException
+import java.math.BigInteger
+import kotlin.random.Random
 
 /**
  * Main activity.
@@ -55,39 +67,73 @@ class MainActivity : AppCompatActivity(), ServiceConnection {
 
     @BindView(R.id.main_text_view)
     lateinit var textView: TextView
+    @BindView(R.id.main_btn_send_tari)
+    lateinit var sendTariButton: Button
+    @BindView(R.id.main_prog_bar)
+    lateinit var progressBar: ProgressBar
 
-    private lateinit var walletService: TariWalletService
+    @BindString(R.string.send_taris_to)
+    lateinit var sendTariString: String
+
+    @BindColor(R.color.gray)
+    @JvmField
+    var grayColor = 0
+
+    // wallet
+    private var walletService: TariWalletService? = null
+    // listener
+    private val serviceListener = ServiceListener()
+
+    private lateinit var sendMicroTariAmount: Amount
+    private val sendMicroTariFee = Amount(BigInteger.valueOf(100L))
+    private val minSendMicroTari = 500
+    private val maxSendMicroTari = 1000000
+
+    private val contacts = mutableListOf<Contact>()
+    private lateinit var contactToSendTariTo: Contact
+    private lateinit var walletPublicKeyHexString: String
+    private val dateTimeFormat = DateTimeFormat.forPattern("dd.MM.yyyy HH:mm")
+
+    private var toast: Toast? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         ButterKnife.bind(this)
 
+        sendTariButton.visibility = View.INVISIBLE
+        progressBar.visibility = View.GONE
+        progressBar.indeterminateDrawable
+            .mutate()
+            .setColorFilter(grayColor, PorterDuff.Mode.SRC_IN)
+
         // bind to service
         val implicit = Intent(TariWalletService::class.java.name)
         val matches: List<ResolveInfo> = packageManager.queryIntentServices(implicit, 0)
         when {
             matches.isEmpty() -> {
-                Toast.makeText(
+                toast = Toast.makeText(
                     this,
                     "Service not found.",
-                    Toast.LENGTH_LONG
-                ).show()
+                    Toast.LENGTH_SHORT
+                )
+                toast?.show()
             }
             matches.size > 1 -> {
-                Toast.makeText(
+                toast = Toast.makeText(
                     this,
                     "Found multiple services.",
-                    Toast.LENGTH_LONG
-                ).show()
-                Logger.e("")
+                    Toast.LENGTH_SHORT
+                )
+                toast?.show()
             }
             else -> {
-                Toast.makeText(
+                toast = Toast.makeText(
                     this,
                     "Located the wallet service. Connecting.",
-                    Toast.LENGTH_LONG
-                ).show()
+                    Toast.LENGTH_SHORT
+                )
+                toast?.show()
                 val explicit = Intent(implicit)
                 val svcInfo: ServiceInfo = matches[0].serviceInfo
                 val cn = ComponentName(
@@ -103,6 +149,9 @@ class MainActivity : AppCompatActivity(), ServiceConnection {
     override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
         Logger.e("Connected to the wallet service.")
         walletService = TariWalletService.Stub.asInterface(service)
+        walletService!!.registerListener(serviceListener)
+        // public key
+        walletPublicKeyHexString = walletService!!.publicKeyHexString
         textView.post {
             displayBalanceAndContacts()
         }
@@ -110,32 +159,200 @@ class MainActivity : AppCompatActivity(), ServiceConnection {
 
     override fun onServiceDisconnected(name: ComponentName?) {
         Logger.e("Disconnected from the wallet service.")
-        // walletService = null
+        walletService = null
+    }
+
+    @OnClick(R.id.main_btn_send_tari)
+    fun sendTariButtonClicked(view: View) {
+        sendTariButton.visibility = View.GONE
+        progressBar.visibility = View.VISIBLE
+        textView.text = ""
+
+        AsyncTask.execute {
+            val sendSuccessful = walletService!!.send(
+                contactToSendTariTo.publicKeyHexString,
+                sendMicroTariAmount,
+                sendMicroTariFee,
+                "Send $sendMicroTariAmount µTaris to ${contacts[0].alias}."
+            )
+            if (sendSuccessful) {
+                textView.post {
+                    toast?.cancel()
+                    toast = Toast.makeText(
+                        this,
+                        "Tari sent successfully.",
+                        Toast.LENGTH_SHORT
+                    )
+                    toast?.show()
+                    displayBalanceAndContacts()
+                }
+            } else {
+                toast?.cancel()
+                textView.post {
+                    toast = Toast.makeText(
+                        this,
+                        "Error: could not send Tari.",
+                        Toast.LENGTH_SHORT
+                    )
+                    toast?.show()
+                    displayBalanceAndContacts()
+                }
+            }
+        }
+
     }
 
     /**
      * Displays wallet contacts in the text view.
      */
     private fun displayBalanceAndContacts() {
-        // get balance info
-        val balanceInfo = walletService.balanceInfo
-        // get contacts
-        val contacts = walletService.contacts
-
-        // display balance
-        var text = "BALANCE\n\n"
-        text += "Available Balance: ${balanceInfo.availableBalance} µTaris\n"
-        text += "Pending Incoming Balance: ${balanceInfo.pendingIncomingBalance} µTaris\n"
-        text += "Pending Outgoming Balance: ${balanceInfo.pendingOutgoingBalance} µTaris\n\n"
-
-        // display contacts
-        text += "CONTACTS\n\n"
-        for (contact in contacts) {
-            text += "${contact.alias}\n" +
-                    "${contact.publicKeyHexString.take(15)}...${contact.publicKeyHexString.takeLast(15)}" +
-                    "\n\n"
+        if (walletService == null) {
+            return
         }
+
+        // balance
+        val balanceInfo = walletService!!.balanceInfo
+        var text = "BALANCE\n"
+        text += "Available: ${balanceInfo.availableBalance} µTaris\n"
+        text += "Pending Incoming: ${balanceInfo.pendingIncomingBalance} µTaris\n"
+        text += "Pending Outgoing: ${balanceInfo.pendingOutgoingBalance} µTaris\n\n"
+
+        sendTariButton.visibility = View.VISIBLE
+        progressBar.visibility = View.GONE
+
+        // contacts
+        contacts.clear()
+        contacts.addAll(walletService!!.contacts)
+        text += "CONTACTS\n"
+        for (contact in contacts) {
+            text += contact.alias +
+                    " [${contact.publicKeyHexString.take(7)}...${contact.publicKeyHexString.takeLast(7)}]\n"
+        }
+
+        contactToSendTariTo = contacts[Random.nextInt(contacts.size)]
+        sendMicroTariAmount = Amount(BigInteger.valueOf(Random.nextInt(minSendMicroTari, maxSendMicroTari).toLong()))
+        sendTariButton.text = String.format(
+            sendTariString,
+            sendMicroTariAmount.value.toLong(),
+            contactToSendTariTo.alias
+        )
+
+
+        // txs
+        text += "\nCOMPLETED TXS\n"
+        val completedTxs = walletService!!.completedTxs.sortedWith(compareBy{ it.timestamp })
+        completedTxs.iterator().forEach {
+            text += dateTimeFormat.print(it.timestamp.toLong() * 1000L) + " UTC : " +
+                    " ${getContactAliasFromPublicKeyHexString(contacts, it.sourcePublicKeyHexString)} " +
+                    "-> ${getContactAliasFromPublicKeyHexString(contacts, it.destinationPublicKeyHexString)} " +
+                    " : ${it.amount} µTaris\n"
+        }
+
+        text += "\nPENDING INBOUND TXS\n"
+        val pendingInboundTxs = walletService!!.pendingInboundTxs.sortedWith(compareBy{ it.timestamp })
+        if (pendingInboundTxs.isEmpty()) {
+            text += "-\n"
+        } else {
+            pendingInboundTxs.iterator().forEach {
+                text += dateTimeFormat.print(it.timestamp.toLong() * 1000L) + " UTC : " +
+                        " From ${getContactAliasFromPublicKeyHexString(contacts, it.sourcePublicKeyHexString)} " +
+                        " : ${it.amount} µTaris\n"
+            }
+        }
+
+        text += "\nPENDING OUTBOUND TXS\n"
+        val pendingOutboundTxs = walletService!!.pendingOutboundTxs.sortedWith(compareBy{ it.timestamp })
+        pendingOutboundTxs.iterator().forEach {
+            text += dateTimeFormat.print(it.timestamp.toLong() * 1000L) + " UTC : " +
+                    " To ${getContactAliasFromPublicKeyHexString(contacts, it.destinationPublicKeyHexString)} " +
+                    " : ${it.amount} µTaris\n"
+        }
+
         textView.text = text
+
+    }
+
+    private fun getContactAliasFromPublicKeyHexString(contacts: List<Contact>, hexString: String): String {
+        if (hexString == walletPublicKeyHexString) {
+            return "Me"
+        } else {
+            contacts.iterator().forEach {
+                if (it.publicKeyHexString == hexString) {
+                    return it.alias
+                }
+            }
+        }
+        throw RuntimeException("Contact not found.")
+    }
+
+    inner class ServiceListener: TariWalletServiceListener.Stub() {
+
+        override fun onTxBroadcast(completedTxId: TxId) {
+            Logger.e("Tx ${completedTxId.value} broadcast.")
+            textView.post {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Tx ${completedTxId.value} broadcast.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
+        override fun onTxReceived(pendingInboundTxId: TxId) {
+            Logger.e("Tx ${pendingInboundTxId.value} received.")
+            textView.post {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Tx ${pendingInboundTxId.value} received.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
+        override fun onTxReplyReceived(pendingInboundTxId: TxId) {
+            Logger.e("Tx $pendingInboundTxId reply received.")
+            textView.post {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Tx $pendingInboundTxId reply received.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
+        override fun onTxFinalized(completedTxId: TxId) {
+            Logger.e("Tx ${completedTxId.value} finalized.")
+            textView.post {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Tx ${completedTxId.value} finalized.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
+        override fun onTxMined(completedTxId: TxId) {
+            Logger.e("Tx ${completedTxId.value} mined.")
+            textView.post {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Tx ${completedTxId.value} mined.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
+        override fun onDiscoveryComplete(txId: TxId, success: Boolean) {
+            Logger.e("Discovery complete. Tx id: ${txId.value}. Success: $success.")
+            textView.post {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Discovery complete. Tx id: ${txId.value}. Success: $success.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
     }
 
 }

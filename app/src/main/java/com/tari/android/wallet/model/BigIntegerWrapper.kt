@@ -30,48 +30,57 @@
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package com.tari.android.wallet.service;
+package com.tari.android.wallet.model
 
-// import model classes
-import com.tari.android.wallet.model.Model;
-import com.tari.android.wallet.service.TariWalletServiceListener;
+import android.os.Parcel
+import android.os.Parcelable
+import java.math.BigInteger
 
-interface TariWalletService {
+/**
+ * This wrapper is needed for BigInteger parameters in AIDL methods.
+ *
+ * @author The Tari Development Team
+ */
+class BigIntegerWrapper() : Parcelable {
 
-    /**
-    * Registers new wallet listener.
-    * Registered listener will be unregistered on death.
-    */
-    boolean registerListener(TariWalletServiceListener listener);
+    var value = BigInteger("0")
 
-    /**
-    * Unregisters wallet listener.
-    */
-    boolean unregisterListener(TariWalletServiceListener listener);
+    constructor(
+        value: BigInteger
+    ) : this() {
+        this.value = value
+    }
 
-    boolean generateTestData();
+    // region Parcelable
 
-    String getPublicKeyHexString();
+    constructor(parcel: Parcel) : this() {
+        readFromParcel(parcel)
+    }
 
-    BalanceInfo getBalanceInfo();
+    companion object CREATOR : Parcelable.Creator<BigIntegerWrapper> {
 
-    List<Contact> getContacts();
+        override fun createFromParcel(parcel: Parcel): BigIntegerWrapper {
+            return BigIntegerWrapper(parcel)
+        }
 
-    List<CompletedTx> getCompletedTxs();
+        override fun newArray(size: Int): Array<BigIntegerWrapper> {
+            return Array(size) { BigIntegerWrapper() }
+        }
 
-    CompletedTx getCompletedTxById(in TxId id);
+    }
 
-    List<PendingInboundTx> getPendingInboundTxs();
-    PendingInboundTx getPendingInboundTxById(in TxId id);
+    override fun writeToParcel(parcel: Parcel, flags: Int) {
+        parcel.writeSerializable(value)
+    }
 
-    List<PendingOutboundTx> getPendingOutboundTxs();
-    PendingOutboundTx getPendingOutboundTxById(in TxId id);
+    private fun readFromParcel(inParcel: Parcel) {
+        value = inParcel.readSerializable() as BigInteger
+    }
 
-    boolean send(
-        String destinationPublicKeyHexString,
-        in Amount amount,
-        in Amount fee,
-        String message
-    );
+    override fun describeContents(): Int {
+        return 0
+    }
+
+    // endregion
 
 }

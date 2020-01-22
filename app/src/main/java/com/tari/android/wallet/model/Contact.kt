@@ -35,10 +35,29 @@ package com.tari.android.wallet.model
 import android.os.Parcel
 import android.os.Parcelable
 
+/**
+ * Contact model class.
+ *
+ * @author The Tari Development Team
+ */
 class Contact() : Parcelable {
 
     var publicKeyHexString = ""
     var alias: String = ""
+
+    constructor(
+        publicKeyHexString: String,
+        alias: String
+    ) : this() {
+        this.publicKeyHexString = publicKeyHexString
+        this.alias = alias
+    }
+
+    // region Parcelable
+
+    constructor(parcel: Parcel) : this() {
+        readFromParcel(parcel)
+    }
 
     companion object CREATOR : Parcelable.Creator<Contact> {
 
@@ -52,22 +71,20 @@ class Contact() : Parcelable {
 
     }
 
-    constructor(parcel: Parcel) : this() {
-        readFromParcel(parcel)
-    }
-
     override fun writeToParcel(parcel: Parcel, flags: Int) {
         parcel.writeString(publicKeyHexString)
         parcel.writeString(alias)
     }
 
     private fun readFromParcel(inParcel: Parcel) {
-        publicKeyHexString = inParcel.readString()!!
-        alias = inParcel.readString()!!
+        publicKeyHexString = inParcel.readString() ?: ""
+        alias = inParcel.readString() ?: ""
     }
 
     override fun describeContents(): Int {
         return 0
     }
+
+    // endregion
 
 }

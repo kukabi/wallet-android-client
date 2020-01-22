@@ -34,44 +34,21 @@ package com.tari.android.wallet.service;
 
 // import model classes
 import com.tari.android.wallet.model.Model;
-import com.tari.android.wallet.service.TariWalletServiceListener;
 
-interface TariWalletService {
+// Declare any non-default types here with import statements
 
-    /**
-    * Registers new wallet listener.
-    * Registered listener will be unregistered on death.
-    */
-    boolean registerListener(TariWalletServiceListener listener);
+oneway interface TariWalletServiceListener {
 
-    /**
-    * Unregisters wallet listener.
-    */
-    boolean unregisterListener(TariWalletServiceListener listener);
+    void onTxBroadcast(in TxId completedTxId);
 
-    boolean generateTestData();
+    void onTxMined(in TxId completedTxId);
 
-    String getPublicKeyHexString();
+    void onTxReceived(in TxId pendingInboundTxId);
 
-    BalanceInfo getBalanceInfo();
+    void onTxReplyReceived(in TxId pendingInboundTxId);
 
-    List<Contact> getContacts();
+    void onTxFinalized(in TxId completedTxId);
 
-    List<CompletedTx> getCompletedTxs();
-
-    CompletedTx getCompletedTxById(in TxId id);
-
-    List<PendingInboundTx> getPendingInboundTxs();
-    PendingInboundTx getPendingInboundTxById(in TxId id);
-
-    List<PendingOutboundTx> getPendingOutboundTxs();
-    PendingOutboundTx getPendingOutboundTxById(in TxId id);
-
-    boolean send(
-        String destinationPublicKeyHexString,
-        in Amount amount,
-        in Amount fee,
-        String message
-    );
+    void onDiscoveryComplete(in TxId completedTxId, in boolean success);
 
 }
