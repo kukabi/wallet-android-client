@@ -34,16 +34,23 @@ package com.tari.android.wallet.model
 
 import android.os.Parcel
 import android.os.Parcelable
+import com.orhanobut.logger.Logger
+import java.math.BigDecimal
 import java.math.BigInteger
+import kotlin.math.pow
 
 /**
  * This wrapper is needed for amount parameters in AIDL methods.
  *
  * @author The Tari Development Team
  */
-class Amount() : Parcelable {
+class MicroTari() : Parcelable {
 
     var value = BigInteger("0")
+
+    private val million = BigDecimal(10.0.pow(6))
+    val tariValue: BigDecimal
+        get() = value.toBigDecimal().divide(million)
 
     constructor(
         value: BigInteger
@@ -57,14 +64,14 @@ class Amount() : Parcelable {
         readFromParcel(parcel)
     }
 
-    companion object CREATOR : Parcelable.Creator<Amount> {
+    companion object CREATOR : Parcelable.Creator<MicroTari> {
 
-        override fun createFromParcel(parcel: Parcel): Amount {
-            return Amount(parcel)
+        override fun createFromParcel(parcel: Parcel): MicroTari {
+            return MicroTari(parcel)
         }
 
-        override fun newArray(size: Int): Array<Amount> {
-            return Array(size) { Amount() }
+        override fun newArray(size: Int): Array<MicroTari> {
+            return Array(size) { MicroTari() }
         }
 
     }

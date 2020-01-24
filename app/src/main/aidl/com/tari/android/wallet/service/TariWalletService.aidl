@@ -68,10 +68,12 @@ interface TariWalletService {
     PendingOutboundTx getPendingOutboundTxById(in TxId id);
 
     boolean send(
-        String destinationPublicKeyHexString,
-        in Amount amount,
-        in Amount fee,
+        in Contact contact,
+        in MicroTari amount,
+        in MicroTari fee,
         String message
     );
+
+    boolean testComplete(in PendingOutboundTx tx);
 
 }

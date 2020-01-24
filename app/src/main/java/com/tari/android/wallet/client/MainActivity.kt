@@ -50,8 +50,9 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import butterknife.*
 import com.orhanobut.logger.Logger
-import com.tari.android.wallet.model.Amount
+import com.tari.android.wallet.model.MicroTari
 import com.tari.android.wallet.model.Contact
+import com.tari.android.wallet.model.Tx
 import com.tari.android.wallet.model.TxId
 import com.tari.android.wallet.service.TariWalletService
 import com.tari.android.wallet.service.TariWalletServiceListener
@@ -84,8 +85,8 @@ class MainActivity : AppCompatActivity(), ServiceConnection {
     // listener
     private val serviceListener = ServiceListener()
 
-    private lateinit var sendMicroTariAmount: Amount
-    private val sendMicroTariFee = Amount(BigInteger.valueOf(100L))
+    private lateinit var sendMicroTariAmount: MicroTari
+    private val sendMicroTariFee = MicroTari(BigInteger.valueOf(100L))
     private val minSendMicroTari = 500
     private val maxSendMicroTari = 1000000
 
@@ -170,10 +171,10 @@ class MainActivity : AppCompatActivity(), ServiceConnection {
 
         AsyncTask.execute {
             val sendSuccessful = walletService!!.send(
-                contactToSendTariTo.publicKeyHexString,
+                contactToSendTariTo,
                 sendMicroTariAmount,
                 sendMicroTariFee,
-                "Send $sendMicroTariAmount µTaris to ${contacts[0].alias}."
+                "Send ${sendMicroTariAmount.value} µTaris to ${contacts[0].alias}."
             )
             if (sendSuccessful) {
                 textView.post {
@@ -213,9 +214,9 @@ class MainActivity : AppCompatActivity(), ServiceConnection {
         // balance
         val balanceInfo = walletService!!.balanceInfo
         var text = "BALANCE\n"
-        text += "Available: ${balanceInfo.availableBalance} µTaris\n"
-        text += "Pending Incoming: ${balanceInfo.pendingIncomingBalance} µTaris\n"
-        text += "Pending Outgoing: ${balanceInfo.pendingOutgoingBalance} µTaris\n\n"
+        text += "Available: ${balanceInfo.availableBalance.value} µTaris\n"
+        text += "Pending Incoming: ${balanceInfo.pendingIncomingBalance.value} µTaris\n"
+        text += "Pending Outgoing: ${balanceInfo.pendingOutgoingBalance.value} µTaris\n\n"
 
         sendTariButton.visibility = View.VISIBLE
         progressBar.visibility = View.GONE
@@ -226,53 +227,69 @@ class MainActivity : AppCompatActivity(), ServiceConnection {
         text += "CONTACTS\n"
         for (contact in contacts) {
             text += contact.alias +
-                    " [${contact.publicKeyHexString.take(7)}...${contact.publicKeyHexString.takeLast(7)}]\n"
+                    " [${contact.publicKeyHexString.take(7)}...${contact.publicKeyHexString.takeLast(
+                        7
+                    )}]\n"
         }
 
         contactToSendTariTo = contacts[Random.nextInt(contacts.size)]
-        sendMicroTariAmount = Amount(BigInteger.valueOf(Random.nextInt(minSendMicroTari, maxSendMicroTari).toLong()))
+        sendMicroTariAmount =
+            MicroTari(BigInteger.valueOf(Random.nextInt(minSendMicroTari, maxSendMicroTari).toLong()))
         sendTariButton.text = String.format(
             sendTariString,
             sendMicroTariAmount.value.toLong(),
             contactToSendTariTo.alias
         )
 
-
         // txs
         text += "\nCOMPLETED TXS\n"
-        val completedTxs = walletService!!.completedTxs.sortedWith(compareBy{ it.timestamp })
+        val completedTxs = walletService!!.completedTxs.sortedWith(compareBy { it.timestamp })
         completedTxs.iterator().forEach {
+            val from: String
+            val to: String
+            if (it.direction == Tx.Direction.INBOUND) {
+                from = it.contact.alias
+                to = "Me"
+            } else {
+                from = "Me"
+                to = it.contact.alias
+            }
             text += dateTimeFormat.print(it.timestamp.toLong() * 1000L) + " UTC : " +
-                    " ${getContactAliasFromPublicKeyHexString(contacts, it.sourcePublicKeyHexString)} " +
-                    "-> ${getContactAliasFromPublicKeyHexString(contacts, it.destinationPublicKeyHexString)} " +
-                    " : ${it.amount} µTaris\n"
+                    from +
+                    " -> $to " +
+                    " : ${it.amount.value} µTaris\n"
         }
 
         text += "\nPENDING INBOUND TXS\n"
-        val pendingInboundTxs = walletService!!.pendingInboundTxs.sortedWith(compareBy{ it.timestamp })
+        val pendingInboundTxs =
+            walletService!!.pendingInboundTxs.sortedWith(compareBy { it.timestamp })
         if (pendingInboundTxs.isEmpty()) {
             text += "-\n"
         } else {
             pendingInboundTxs.iterator().forEach {
                 text += dateTimeFormat.print(it.timestamp.toLong() * 1000L) + " UTC : " +
-                        " From ${getContactAliasFromPublicKeyHexString(contacts, it.sourcePublicKeyHexString)} " +
-                        " : ${it.amount} µTaris\n"
+                        " From ${it.contact.alias} " +
+                        " : ${it.amount.value} µTaris\n"
             }
         }
 
         text += "\nPENDING OUTBOUND TXS\n"
-        val pendingOutboundTxs = walletService!!.pendingOutboundTxs.sortedWith(compareBy{ it.timestamp })
+        val pendingOutboundTxs =
+            walletService!!.pendingOutboundTxs.sortedWith(compareBy { it.timestamp })
         pendingOutboundTxs.iterator().forEach {
             text += dateTimeFormat.print(it.timestamp.toLong() * 1000L) + " UTC : " +
-                    " To ${getContactAliasFromPublicKeyHexString(contacts, it.destinationPublicKeyHexString)} " +
-                    " : ${it.amount} µTaris\n"
+                    " To ${it.contact.alias} " +
+                    " : ${it.amount.value} µTaris\n"
         }
 
         textView.text = text
 
     }
 
-    private fun getContactAliasFromPublicKeyHexString(contacts: List<Contact>, hexString: String): String {
+    private fun getContactAliasFromPublicKeyHexString(
+        contacts: List<Contact>,
+        hexString: String
+    ): String {
         if (hexString == walletPublicKeyHexString) {
             return "Me"
         } else {
@@ -285,7 +302,7 @@ class MainActivity : AppCompatActivity(), ServiceConnection {
         throw RuntimeException("Contact not found.")
     }
 
-    inner class ServiceListener: TariWalletServiceListener.Stub() {
+    inner class ServiceListener : TariWalletServiceListener.Stub() {
 
         override fun onTxBroadcast(completedTxId: TxId) {
             Logger.e("Tx ${completedTxId.value} broadcast.")

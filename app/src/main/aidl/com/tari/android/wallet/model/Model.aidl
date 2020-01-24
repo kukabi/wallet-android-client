@@ -36,7 +36,7 @@ package com.tari.android.wallet.model;
  * Declare model classes in this file.
  */
 parcelable TxId;
-parcelable Amount;
+parcelable MicroTari;
 parcelable BalanceInfo;
 parcelable Contact;
 parcelable CompletedTx;
